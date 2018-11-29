@@ -2,6 +2,8 @@ package org.myspring.core;
 
 import org.myspring.core.util.ConcurrentReferenceHashMap;
 import org.myspring.core.SerializableTypeWrapper.TypeProvider;
+import org.myspring.core.util.ObjectUtils;
+
 import java.io.Serializable;
 import java.lang.reflect.*;
 
@@ -56,6 +58,14 @@ public class ResolvableType  implements Serializable {
         this.componentType = null;
         this.hash = null;
     }
+    private ResolvableType(Type type, TypeProvider typeProvider, VariableResolver variableResolver) {
+        this.type = type;
+        this.typeProvider = typeProvider;
+        this.variableResolver = variableResolver;
+        this.componentType = null;
+        this.resolved = null;
+        this.hash = calculateHashCode();
+    }
 
     private ResolvableType(Type type, TypeProvider typeProvider, VariableResolver variableResolver, Integer hash) {
         this.type = type;
@@ -65,6 +75,18 @@ public class ResolvableType  implements Serializable {
         this.resolved = resolveClass();
         this.hash = hash;
     }
+
+    private ResolvableType(
+            Type type, TypeProvider typeProvider, VariableResolver variableResolver, ResolvableType componentType) {
+
+        this.type = type;
+        this.typeProvider = typeProvider;
+        this.variableResolver = variableResolver;
+        this.componentType = componentType;
+        this.resolved = resolveClass();
+        this.hash = null;
+    }
+
 
     public static ResolvableType forClass(Class<?> clazz) {
         return new ResolvableType(clazz);
@@ -79,6 +101,12 @@ public class ResolvableType  implements Serializable {
             return (resolvedComponent != null ? Array.newInstance(resolvedComponent, 0).getClass() : null);
         }
         return resolveType().resolve();
+    }
+    public Class<?> resolve(Class<?> fallback) {
+        return (this.resolved != null ? this.resolved : fallback);
+    }
+    public Class<?> resolve() {
+        return resolve(null);
     }
 
     public ResolvableType getComponentType() {
@@ -124,6 +152,13 @@ public class ResolvableType  implements Serializable {
         return NONE;
     }
 
+    private Type resolveBounds(Type[] bounds) {
+        if (ObjectUtils.isEmpty(bounds) || Object.class == bounds[0]) {
+            return null;
+        }
+        return bounds[0];
+    }
+
     private static ResolvableType[] forTypes(Type[] types, VariableResolver owner) {
         ResolvableType[] result = new ResolvableType[types.length];
         for (int i = 0; i < types.length; i++) {
@@ -142,6 +177,14 @@ public class ResolvableType  implements Serializable {
         }
         return forType(type, variableResolver);
     }
+
+    VariableResolver asVariableResolver() {
+        if (this == NONE) {
+            return null;
+        }
+        return new DefaultVariableResolver();
+    }
+
     public static ResolvableType forType(ParameterizedTypeReference<?> typeReference) {
         return forType(typeReference.getType(), null, null);
     }
@@ -176,30 +219,52 @@ public class ResolvableType  implements Serializable {
         return resolvableType;
     }
 
-    static Type forTypeProvider(TypeProvider provider) {
-        Type providedType = provider.getType();
-        if (providedType == null || providedType instanceof Serializable) {
-            // No serializable type wrapping necessary (e.g. for java.lang.Class)
-            return providedType;
-        }
 
-        // Obtain a serializable type proxy for the given provider...
-        Type cached = cache.get(providedType);
-        if (cached != null) {
-            return cached;
+    private ResolvableType resolveVariable(TypeVariable<?> variable) {
+        if (this.type instanceof TypeVariable) {
+            return resolveType().resolveVariable(variable);
         }
-        for (Class<?> type : SUPPORTED_SERIALIZABLE_TYPES) {
-            if (type.isInstance(providedType)) {
-                ClassLoader classLoader = provider.getClass().getClassLoader();
-                Class<?>[] interfaces = new Class<?>[] {type, SerializableTypeProxy.class, Serializable.class};
-                InvocationHandler handler = new TypeProxyInvocationHandler(provider);
-                cached = (Type) Proxy.newProxyInstance(classLoader, interfaces, handler);
-                cache.put(providedType, cached);
-                return cached;
+        if (this.type instanceof ParameterizedType) {
+            ParameterizedType parameterizedType = (ParameterizedType) this.type;
+            TypeVariable<?>[] variables = resolve().getTypeParameters();
+            for (int i = 0; i < variables.length; i++) {
+                if (ObjectUtils.nullSafeEquals(variables[i].getName(), variable.getName())) {
+                    Type actualType = parameterizedType.getActualTypeArguments()[i];
+                    return forType(actualType, this.variableResolver);
+                }
+            }
+            if (parameterizedType.getOwnerType() != null) {
+                return forType(parameterizedType.getOwnerType(), this.variableResolver).resolveVariable(variable);
             }
         }
-        throw new IllegalArgumentException("Unsupported Type class: " + providedType.getClass().getName());
+        if (this.variableResolver != null) {
+            return this.variableResolver.resolveVariable(variable);
+        }
+        return null;
     }
+
+
+
+    @Override
+    public int hashCode() {
+        return (this.hash != null ? this.hash : calculateHashCode());
+    }
+
+    private int calculateHashCode() {
+        int hashCode = ObjectUtils.nullSafeHashCode(this.type);
+        if (this.typeProvider != null) {
+            hashCode = 31 * hashCode + ObjectUtils.nullSafeHashCode(this.typeProvider.getType());
+        }
+        if (this.variableResolver != null) {
+            hashCode = 31 * hashCode + ObjectUtils.nullSafeHashCode(this.variableResolver.getSource());
+        }
+        if (this.componentType != null) {
+            hashCode = 31 * hashCode + ObjectUtils.nullSafeHashCode(this.componentType);
+        }
+        return hashCode;
+    }
+
+
 
     interface VariableResolver extends Serializable {
 
@@ -214,5 +279,18 @@ public class ResolvableType  implements Serializable {
          * @return the resolved variable, or {@code null} if not found
          */
         ResolvableType resolveVariable(TypeVariable<?> variable);
+    }
+
+    private class DefaultVariableResolver implements VariableResolver {
+
+        @Override
+        public ResolvableType resolveVariable(TypeVariable<?> variable) {
+            return ResolvableType.this.resolveVariable(variable);
+        }
+
+        @Override
+        public Object getSource() {
+            return ResolvableType.this;
+        }
     }
 }

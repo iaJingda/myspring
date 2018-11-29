@@ -6,6 +6,11 @@ public abstract class ObjectUtils {
     private static final int INITIAL_HASH = 7;
     private static final int MULTIPLIER = 31;
 
+
+    public static boolean isEmpty(Object[] array) {
+        return (array == null || array.length == 0);
+    }
+
     public static boolean nullSafeEquals(Object o1, Object o2) {
         if (o1 == o2) {
             return true;

@@ -3,7 +3,7 @@ package org.myspring.beans;
 import org.myspring.core.NestedRuntimeException;
 import org.myspring.core.util.ObjectUtils;
 
-public class BeansException extends NestedRuntimeException {
+public abstract class BeansException extends NestedRuntimeException {
 
     public BeansException(String msg){
         super(msg);
