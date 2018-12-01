@@ -1,20 +1,24 @@
 package org.myspring.core.util;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.UndeclaredThrowableException;
+import java.lang.reflect.*;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+
 
 public abstract class ReflectionUtils {
 
     private static final Map<Class<?>, Method[]> declaredMethodsCache =
             new ConcurrentReferenceHashMap<Class<?>, Method[]>(256);
 
+    private static final String CGLIB_RENAMED_METHOD_PREFIX = "CGLIB$";
     private static final Method[] NO_METHODS = {};
+    private static final Field[] NO_FIELDS = {};
+
+    private static final Map<Class<?>, Field[]> declaredFieldsCache =
+            new ConcurrentReferenceHashMap<Class<?>, Field[]>(256);
+
 
     public static Object invokeMethod(Method method, Object target) {
         return invokeMethod(method, target, new Object[0]);
@@ -116,4 +120,47 @@ public abstract class ReflectionUtils {
         }
         return result;
     }
+
+    public static Field findField(Class<?> clazz, String name) {
+        return findField(clazz, name, null);
+    }
+
+    public static Field findField(Class<?> clazz, String name, Class<?> type) {
+        Assert.notNull(clazz, "Class must not be null");
+        Assert.isTrue(name != null || type != null, "Either name or type of the field must be specified");
+        Class<?> searchType = clazz;
+        while (Object.class != searchType && searchType != null) {
+            Field[] fields = getDeclaredFields(searchType);
+            for (Field field : fields) {
+                if ((name == null || name.equals(field.getName())) &&
+                        (type == null || type.equals(field.getType()))) {
+                    return field;
+                }
+            }
+            searchType = searchType.getSuperclass();
+        }
+        return null;
+    }
+
+    private static Field[] getDeclaredFields(Class<?> clazz) {
+        Assert.notNull(clazz, "Class must not be null");
+        Field[] result = declaredFieldsCache.get(clazz);
+        if (result == null) {
+            result = clazz.getDeclaredFields();
+            declaredFieldsCache.put(clazz, (result.length == 0 ? NO_FIELDS : result));
+        }
+        return result;
+    }
+
+    public static Object getField(Field field, Object target) {
+        try {
+            return field.get(target);
+        }
+        catch (IllegalAccessException ex) {
+            handleReflectionException(ex);
+            throw new IllegalStateException(
+                    "Unexpected reflection exception - " + ex.getClass().getName() + ": " + ex.getMessage());
+        }
+    }
+
 }

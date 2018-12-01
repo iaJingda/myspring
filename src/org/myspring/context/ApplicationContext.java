@@ -14,6 +14,8 @@ public interface ApplicationContext extends EnvironmentCapable, ListableBeanFact
 
     String getId();
 
+    String getApplicationName();
+
     String getDisplayName();
 
     long getStartupDate();

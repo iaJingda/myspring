@@ -14,6 +14,54 @@ abstract class SerializableTypeWrapper {
     private static final Class<?>[] SUPPORTED_SERIALIZABLE_TYPES = {
             GenericArrayType.class, ParameterizedType.class, TypeVariable.class, WildcardType.class};
 
+    public static Type forGenericSuperclass(final Class<?> type) {
+        return forTypeProvider(new SimpleTypeProvider() {
+            @Override
+            public Type getType() {
+                return type.getGenericSuperclass();
+            }
+        });
+    }
+
+
+    public static Type[] forTypeParameters(final Class<?> type) {
+        Type[] result = new Type[type.getTypeParameters().length];
+        for (int i = 0; i < result.length; i++) {
+            final int index = i;
+            result[i] = forTypeProvider(new SimpleTypeProvider() {
+                @Override
+                public Type getType() {
+                    return type.getTypeParameters()[index];
+                }
+            });
+        }
+        return result;
+    }
+
+
+
+    private static abstract class SimpleTypeProvider implements TypeProvider {
+
+        @Override
+        public Object getSource() {
+            return null;
+        }
+    }
+    public static Type[] forGenericInterfaces(final Class<?> type) {
+        Type[] result = new Type[type.getGenericInterfaces().length];
+        for (int i = 0; i < result.length; i++) {
+            final int index = i;
+            result[i] = forTypeProvider(new SimpleTypeProvider() {
+                @Override
+                public Type getType() {
+                    return type.getGenericInterfaces()[index];
+                }
+            });
+        }
+        return result;
+    }
+
+
 
     static Type forTypeProvider(TypeProvider provider) {
         Type providedType = provider.getType();
@@ -155,6 +203,96 @@ abstract class SerializableTypeWrapper {
             if (this.method.getReturnType() != Type.class && this.method.getReturnType() != Type[].class) {
                 throw new IllegalStateException(
                         "Invalid return type on deserialized method - needs to be Type or Type[]: " + this.method);
+            }
+        }
+    }
+
+    static class MethodParameterTypeProvider implements TypeProvider {
+
+        private final String methodName;
+
+        private final Class<?>[] parameterTypes;
+
+        private final Class<?> declaringClass;
+
+        private final int parameterIndex;
+
+        private transient MethodParameter methodParameter;
+
+        public MethodParameterTypeProvider(MethodParameter methodParameter) {
+            if (methodParameter.getMethod() != null) {
+                this.methodName = methodParameter.getMethod().getName();
+                this.parameterTypes = methodParameter.getMethod().getParameterTypes();
+            }
+            else {
+                this.methodName = null;
+                this.parameterTypes = methodParameter.getConstructor().getParameterTypes();
+            }
+            this.declaringClass = methodParameter.getDeclaringClass();
+            this.parameterIndex = methodParameter.getParameterIndex();
+            this.methodParameter = methodParameter;
+        }
+
+
+        @Override
+        public Type getType() {
+            return this.methodParameter.getGenericParameterType();
+        }
+
+        @Override
+        public Object getSource() {
+            return this.methodParameter;
+        }
+
+        private void readObject(ObjectInputStream inputStream) throws IOException, ClassNotFoundException {
+            inputStream.defaultReadObject();
+            try {
+                if (this.methodName != null) {
+                    this.methodParameter = new MethodParameter(
+                            this.declaringClass.getDeclaredMethod(this.methodName, this.parameterTypes), this.parameterIndex);
+                }
+                else {
+                    this.methodParameter = new MethodParameter(
+                            this.declaringClass.getDeclaredConstructor(this.parameterTypes), this.parameterIndex);
+                }
+            }
+            catch (Throwable ex) {
+                throw new IllegalStateException("Could not find original class structure", ex);
+            }
+        }
+    }
+
+    static class FieldTypeProvider implements TypeProvider {
+
+        private final String fieldName;
+
+        private final Class<?> declaringClass;
+
+        private transient Field field;
+
+        public FieldTypeProvider(Field field) {
+            this.fieldName = field.getName();
+            this.declaringClass = field.getDeclaringClass();
+            this.field = field;
+        }
+
+        @Override
+        public Type getType() {
+            return this.field.getGenericType();
+        }
+
+        @Override
+        public Object getSource() {
+            return this.field;
+        }
+
+        private void readObject(ObjectInputStream inputStream) throws IOException, ClassNotFoundException {
+            inputStream.defaultReadObject();
+            try {
+                this.field = this.declaringClass.getDeclaredField(this.fieldName);
+            }
+            catch (Throwable ex) {
+                throw new IllegalStateException("Could not find original class structure", ex);
             }
         }
     }

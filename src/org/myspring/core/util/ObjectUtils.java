@@ -5,11 +5,40 @@ import java.util.Arrays;
 public abstract class ObjectUtils {
     private static final int INITIAL_HASH = 7;
     private static final int MULTIPLIER = 31;
-
+    private static final String EMPTY_STRING = "";
+    private static final String NULL_STRING = "null";
+    private static final String ARRAY_START = "{";
+    private static final String ARRAY_END = "}";
+    private static final String EMPTY_ARRAY = ARRAY_START + ARRAY_END;
+    private static final String ARRAY_ELEMENT_SEPARATOR = ", ";
 
     public static boolean isEmpty(Object[] array) {
         return (array == null || array.length == 0);
     }
+
+    public static String identityToString(Object obj) {
+        if (obj == null) {
+            return EMPTY_STRING;
+        }
+        return obj.getClass().getName() + "@" + getIdentityHexString(obj);
+    }
+
+    public static boolean containsElement(Object[] array, Object element) {
+        if (array == null) {
+            return false;
+        }
+        for (Object arrayEle : array) {
+            if (nullSafeEquals(arrayEle, element)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static String getIdentityHexString(Object obj) {
+        return Integer.toHexString(System.identityHashCode(obj));
+    }
+
 
     public static boolean nullSafeEquals(Object o1, Object o2) {
         if (o1 == o2) {
@@ -190,6 +219,243 @@ public abstract class ObjectUtils {
         }
         return hash;
     }
+
+    public static String nullSafeToString(Object obj) {
+        if (obj == null) {
+            return NULL_STRING;
+        }
+        if (obj instanceof String) {
+            return (String) obj;
+        }
+        if (obj instanceof Object[]) {
+            return nullSafeToString((Object[]) obj);
+        }
+        if (obj instanceof boolean[]) {
+            return nullSafeToString((boolean[]) obj);
+        }
+        if (obj instanceof byte[]) {
+            return nullSafeToString((byte[]) obj);
+        }
+        if (obj instanceof char[]) {
+            return nullSafeToString((char[]) obj);
+        }
+        if (obj instanceof double[]) {
+            return nullSafeToString((double[]) obj);
+        }
+        if (obj instanceof float[]) {
+            return nullSafeToString((float[]) obj);
+        }
+        if (obj instanceof int[]) {
+            return nullSafeToString((int[]) obj);
+        }
+        if (obj instanceof long[]) {
+            return nullSafeToString((long[]) obj);
+        }
+        if (obj instanceof short[]) {
+            return nullSafeToString((short[]) obj);
+        }
+        String str = obj.toString();
+        return (str != null ? str : EMPTY_STRING);
+    }
+    public static String nullSafeToString(Object[] array) {
+        if (array == null) {
+            return NULL_STRING;
+        }
+        int length = array.length;
+        if (length == 0) {
+            return EMPTY_ARRAY;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            if (i == 0) {
+                sb.append(ARRAY_START);
+            }
+            else {
+                sb.append(ARRAY_ELEMENT_SEPARATOR);
+            }
+            sb.append(String.valueOf(array[i]));
+        }
+        sb.append(ARRAY_END);
+        return sb.toString();
+    }
+
+    public static String nullSafeToString(boolean[] array) {
+        if (array == null) {
+            return NULL_STRING;
+        }
+        int length = array.length;
+        if (length == 0) {
+            return EMPTY_ARRAY;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            if (i == 0) {
+                sb.append(ARRAY_START);
+            }
+            else {
+                sb.append(ARRAY_ELEMENT_SEPARATOR);
+            }
+
+            sb.append(array[i]);
+        }
+        sb.append(ARRAY_END);
+        return sb.toString();
+    }
+    public static String nullSafeToString(byte[] array) {
+        if (array == null) {
+            return NULL_STRING;
+        }
+        int length = array.length;
+        if (length == 0) {
+            return EMPTY_ARRAY;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            if (i == 0) {
+                sb.append(ARRAY_START);
+            }
+            else {
+                sb.append(ARRAY_ELEMENT_SEPARATOR);
+            }
+            sb.append(array[i]);
+        }
+        sb.append(ARRAY_END);
+        return sb.toString();
+    }
+
+    public static String nullSafeToString(char[] array) {
+        if (array == null) {
+            return NULL_STRING;
+        }
+        int length = array.length;
+        if (length == 0) {
+            return EMPTY_ARRAY;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            if (i == 0) {
+                sb.append(ARRAY_START);
+            }
+            else {
+                sb.append(ARRAY_ELEMENT_SEPARATOR);
+            }
+            sb.append("'").append(array[i]).append("'");
+        }
+        sb.append(ARRAY_END);
+        return sb.toString();
+    }
+
+    public static String nullSafeToString(double[] array) {
+        if (array == null) {
+            return NULL_STRING;
+        }
+        int length = array.length;
+        if (length == 0) {
+            return EMPTY_ARRAY;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            if (i == 0) {
+                sb.append(ARRAY_START);
+            }
+            else {
+                sb.append(ARRAY_ELEMENT_SEPARATOR);
+            }
+
+            sb.append(array[i]);
+        }
+        sb.append(ARRAY_END);
+        return sb.toString();
+    }
+
+    public static String nullSafeToString(float[] array) {
+        if (array == null) {
+            return NULL_STRING;
+        }
+        int length = array.length;
+        if (length == 0) {
+            return EMPTY_ARRAY;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            if (i == 0) {
+                sb.append(ARRAY_START);
+            }
+            else {
+                sb.append(ARRAY_ELEMENT_SEPARATOR);
+            }
+
+            sb.append(array[i]);
+        }
+        sb.append(ARRAY_END);
+        return sb.toString();
+    }
+    public static String nullSafeToString(int[] array) {
+        if (array == null) {
+            return NULL_STRING;
+        }
+        int length = array.length;
+        if (length == 0) {
+            return EMPTY_ARRAY;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            if (i == 0) {
+                sb.append(ARRAY_START);
+            }
+            else {
+                sb.append(ARRAY_ELEMENT_SEPARATOR);
+            }
+            sb.append(array[i]);
+        }
+        sb.append(ARRAY_END);
+        return sb.toString();
+    }
+    public static String nullSafeToString(long[] array) {
+        if (array == null) {
+            return NULL_STRING;
+        }
+        int length = array.length;
+        if (length == 0) {
+            return EMPTY_ARRAY;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            if (i == 0) {
+                sb.append(ARRAY_START);
+            }
+            else {
+                sb.append(ARRAY_ELEMENT_SEPARATOR);
+            }
+            sb.append(array[i]);
+        }
+        sb.append(ARRAY_END);
+        return sb.toString();
+    }
+
+    public static String nullSafeToString(short[] array) {
+        if (array == null) {
+            return NULL_STRING;
+        }
+        int length = array.length;
+        if (length == 0) {
+            return EMPTY_ARRAY;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            if (i == 0) {
+                sb.append(ARRAY_START);
+            }
+            else {
+                sb.append(ARRAY_ELEMENT_SEPARATOR);
+            }
+            sb.append(array[i]);
+        }
+        sb.append(ARRAY_END);
+        return sb.toString();
+    }
+
+
 
     public static int hashCode(boolean bool) {
         return (bool ? 1231 : 1237);
