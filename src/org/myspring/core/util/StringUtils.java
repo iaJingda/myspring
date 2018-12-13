@@ -30,6 +30,91 @@ public  abstract class StringUtils {
         return sb.toString();
     }
 
+    public static String arrayToCommaDelimitedString(Object[] arr) {
+        return arrayToDelimitedString(arr, ",");
+    }
+
+
+    public static Locale parseLocaleString(String localeString) {
+        String[] parts = tokenizeToStringArray(localeString, "_ ", false, false);
+        String language = (parts.length > 0 ? parts[0] : "");
+        String country = (parts.length > 1 ? parts[1] : "");
+
+        validateLocalePart(language);
+        validateLocalePart(country);
+
+        String variant = "";
+        if (parts.length > 2) {
+            // There is definitely a variant, and it is everything after the country
+            // code sans the separator between the country code and the variant.
+            int endIndexOfCountryCode = localeString.indexOf(country, language.length()) + country.length();
+            // Strip off any leading '_' and whitespace, what's left is the variant.
+            variant = trimLeadingWhitespace(localeString.substring(endIndexOfCountryCode));
+            if (variant.startsWith("_")) {
+                variant = trimLeadingCharacter(variant, '_');
+            }
+        }
+        return (language.length() > 0 ? new Locale(language, country, variant) : null);
+    }
+
+    public static String[] trimArrayElements(String[] array) {
+        if (ObjectUtils.isEmpty(array)) {
+            return new String[0];
+        }
+
+        String[] result = new String[array.length];
+        for (int i = 0; i < array.length; i++) {
+            String element = array[i];
+            result[i] = (element != null ? element.trim() : null);
+        }
+        return result;
+    }
+
+
+    public static String trimLeadingCharacter(String str, char leadingCharacter) {
+        if (!hasLength(str)) {
+            return str;
+        }
+
+        StringBuilder sb = new StringBuilder(str);
+        while (sb.length() > 0 && sb.charAt(0) == leadingCharacter) {
+            sb.deleteCharAt(0);
+        }
+        return sb.toString();
+    }
+
+    public static String trimLeadingWhitespace(String str) {
+        if (!hasLength(str)) {
+            return str;
+        }
+
+        StringBuilder sb = new StringBuilder(str);
+        while (sb.length() > 0 && Character.isWhitespace(sb.charAt(0))) {
+            sb.deleteCharAt(0);
+        }
+        return sb.toString();
+    }
+
+    private static void validateLocalePart(String localePart) {
+        for (int i = 0; i < localePart.length(); i++) {
+            char ch = localePart.charAt(i);
+            if (ch != ' ' && ch != '_' && ch != '#' && !Character.isLetterOrDigit(ch)) {
+                throw new IllegalArgumentException(
+                        "Locale part \"" + localePart + "\" contains invalid characters");
+            }
+        }
+    }
+
+    public static TimeZone parseTimeZoneString(String timeZoneString) {
+        TimeZone timeZone = TimeZone.getTimeZone(timeZoneString);
+        if ("GMT".equals(timeZone.getID()) && !timeZoneString.startsWith("GMT")) {
+            // We don't want that GMT fallback...
+            throw new IllegalArgumentException("Invalid time zone specification '" + timeZoneString + "'");
+        }
+        return timeZone;
+    }
+
+
     public static String[] tokenizeToStringArray(
             String str, String delimiters, boolean trimTokens, boolean ignoreEmptyTokens) {
 
@@ -51,6 +136,9 @@ public  abstract class StringUtils {
         return toStringArray(tokens);
     }
 
+    public static boolean isEmpty(Object str) {
+        return (str == null || "".equals(str));
+    }
 
     public static String[] commaDelimitedListToStringArray(String str) {
         return delimitedListToStringArray(str, ",");

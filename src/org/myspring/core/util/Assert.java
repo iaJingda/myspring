@@ -1,5 +1,7 @@
 package org.myspring.core.util;
 
+import java.util.Collection;
+
 public abstract class Assert {
 
     public static void isTrue(boolean expression, String message) {
@@ -13,7 +15,11 @@ public abstract class Assert {
             throw new IllegalArgumentException(message);
         }
     }
-
+    public static void notEmpty(Collection<?> collection, String message) {
+        if (CollectionUtils.isEmpty(collection)) {
+            throw new IllegalArgumentException(message);
+        }
+    }
     public static void hasText(String text, String message) {
         if (!StringUtils.hasText(text)) {
             throw new IllegalArgumentException(message);

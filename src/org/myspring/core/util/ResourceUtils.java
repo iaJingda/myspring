@@ -74,6 +74,22 @@ public abstract class ResourceUtils {
             return new File(resourceUrl.getFile());
         }
     }
+    public static boolean isUrl(String resourceLocation) {
+        if (resourceLocation == null) {
+            return false;
+        }
+        if (resourceLocation.startsWith(CLASSPATH_URL_PREFIX)) {
+            return true;
+        }
+        try {
+            new URL(resourceLocation);
+            return true;
+        }
+        catch (MalformedURLException ex) {
+            return false;
+        }
+    }
+
 
     public static boolean isJarURL(URL url) {
         String protocol = url.getProtocol();

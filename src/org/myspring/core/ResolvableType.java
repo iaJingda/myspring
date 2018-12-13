@@ -1,5 +1,6 @@
 package org.myspring.core;
 
+import org.myspring.core.lang.UsesJava8;
 import org.myspring.core.util.Assert;
 import org.myspring.core.util.ClassUtils;
 import org.myspring.core.util.ConcurrentReferenceHashMap;
@@ -9,6 +10,7 @@ import org.myspring.core.util.ObjectUtils;
 
 import java.io.Serializable;
 import java.lang.reflect.*;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -98,12 +100,33 @@ public class ResolvableType  implements Serializable {
         return new ResolvableType(clazz);
     }
 
+    public static ResolvableType forInstance(Object instance) {
+        Assert.notNull(instance, "Instance must not be null");
+        if (instance instanceof ResolvableTypeProvider) {
+            ResolvableType type = ((ResolvableTypeProvider) instance).getResolvableType();
+            if (type != null) {
+                return type;
+            }
+        }
+        return ResolvableType.forClass(instance.getClass());
+    }
+
 
     public static ResolvableType forField(Field field) {
         Assert.notNull(field, "Field must not be null");
         return forType(null, new FieldTypeProvider(field), null);
     }
-
+    public static ResolvableType forField(Field field, int nestingLevel, Class<?> implementationClass) {
+        Assert.notNull(field, "Field must not be null");
+        ResolvableType owner = forType(implementationClass).as(field.getDeclaringClass());
+        return forType(null, new FieldTypeProvider(field), owner.asVariableResolver()).getNested(nestingLevel);
+    }
+    public ResolvableType getNested(int nestingLevel) {
+        return getNested(nestingLevel, null);
+    }
+    public Class<?> resolveGeneric(int... indexes) {
+        return getGeneric(indexes).resolve();
+    }
 
     public boolean isArray() {
         if (this == NONE) {
@@ -122,6 +145,60 @@ public class ResolvableType  implements Serializable {
     public Type getType() {
         return SerializableTypeWrapper.unwrap(this.type);
     }
+
+    public static void clearCache() {
+        cache.clear();
+        SerializableTypeWrapper.cache.clear();
+    }
+
+
+    public static ResolvableType forRawClass(Class<?> clazz) {
+        return new ResolvableType(clazz) {
+            @Override
+            public ResolvableType[] getGenerics() {
+                return EMPTY_TYPES_ARRAY;
+            }
+            @Override
+            public boolean isAssignableFrom(Class<?> other) {
+                return ClassUtils.isAssignable(getRawClass(), other);
+            }
+            @Override
+            public boolean isAssignableFrom(ResolvableType other) {
+                Class<?> otherClass = other.getRawClass();
+                return (otherClass != null && ClassUtils.isAssignable(getRawClass(), otherClass));
+            }
+        };
+    }
+
+    public Class<?> getRawClass() {
+        if (this.type == this.resolved) {
+            return this.resolved;
+        }
+        Type rawType = this.type;
+        if (rawType instanceof ParameterizedType) {
+            rawType = ((ParameterizedType) rawType).getRawType();
+        }
+        return (rawType instanceof Class ? (Class<?>) rawType : null);
+    }
+
+
+    public static ResolvableType forClassWithGenerics(Class<?> clazz, ResolvableType... generics) {
+        Assert.notNull(clazz, "Class must not be null");
+        Assert.notNull(generics, "Generics array must not be null");
+        TypeVariable<?>[] variables = clazz.getTypeParameters();
+        Assert.isTrue(variables.length == generics.length, "Mismatched number of generics specified");
+
+        Type[] arguments = new Type[generics.length];
+        for (int i = 0; i < generics.length; i++) {
+            ResolvableType generic = generics[i];
+            Type argument = (generic != null ? generic.getType() : null);
+            arguments[i] = (argument != null ? argument : variables[i]);
+        }
+
+        ParameterizedType syntheticType = new SyntheticParameterizedType(clazz, arguments);
+        return forType(syntheticType, new TypeVariablesVariableResolver(variables, generics));
+    }
+
 
     public boolean hasUnresolvableGenerics() {
         if (this == NONE) {
@@ -173,8 +250,15 @@ public class ResolvableType  implements Serializable {
         return false;
     }
 
+    public boolean isInstance(Object obj) {
+        return (obj != null && isAssignableFrom(obj.getClass()));
+    }
 
-    public boolean isAssignableFrom(ResolvableType other) {
+    public boolean isAssignableFrom(Class<?> other) {
+        return isAssignableFrom(forClass(other), null);
+    }
+
+    public boolean  isAssignableFrom(ResolvableType other) {
         return isAssignableFrom(other, null);
     }
 
@@ -277,6 +361,11 @@ public class ResolvableType  implements Serializable {
         methodParameter.setContainingClass(implementationClass);
         return forMethodParameter(methodParameter);
     }
+    public static ResolvableType forMethodReturnType(Method method) {
+        Assert.notNull(method, "Method must not be null");
+        return forMethodParameter(new MethodParameter(method, -1));
+    }
+
 
     public static ResolvableType forMethodParameter(MethodParameter methodParameter) {
         return forMethodParameter(methodParameter, (Type) null);
@@ -287,6 +376,13 @@ public class ResolvableType  implements Serializable {
         ResolvableType owner = forType(methodParameter.getContainingClass()).as(methodParameter.getDeclaringClass());
         return forType(targetType, new SerializableTypeWrapper.MethodParameterTypeProvider(methodParameter), owner.asVariableResolver()).
                 getNested(methodParameter.getNestingLevel(), methodParameter.typeIndexesPerLevel);
+    }
+
+    public static ResolvableType forMethodParameter(Method method, int parameterIndex, Class<?> implementationClass) {
+        Assert.notNull(method, "Method must not be null");
+        MethodParameter methodParameter = new MethodParameter(method, parameterIndex);
+        methodParameter.setContainingClass(implementationClass);
+        return forMethodParameter(methodParameter);
     }
 
 
@@ -601,6 +697,99 @@ public class ResolvableType  implements Serializable {
                 forType(null, new SerializableTypeWrapper.MethodParameterTypeProvider(methodParameter), owner.asVariableResolver()).resolve());
     }
 
+    //==============================================================================================
+    private static class TypeVariablesVariableResolver implements VariableResolver {
+
+        private final TypeVariable<?>[] variables;
+
+        private final ResolvableType[] generics;
+
+        public TypeVariablesVariableResolver(TypeVariable<?>[] variables, ResolvableType[] generics) {
+            this.variables = variables;
+            this.generics = generics;
+        }
+
+        @Override
+        public ResolvableType resolveVariable(TypeVariable<?> variable) {
+            for (int i = 0; i < this.variables.length; i++) {
+                TypeVariable<?> v1 = SerializableTypeWrapper.unwrap(this.variables[i]);
+                TypeVariable<?> v2 = SerializableTypeWrapper.unwrap(variable);
+                if (ObjectUtils.nullSafeEquals(v1, v2)) {
+                    return this.generics[i];
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public Object getSource() {
+            return this.generics;
+        }
+    }
+
+
+
+    private static final class SyntheticParameterizedType implements ParameterizedType, Serializable {
+
+        private final Type rawType;
+
+        private final Type[] typeArguments;
+
+        public SyntheticParameterizedType(Type rawType, Type[] typeArguments) {
+            this.rawType = rawType;
+            this.typeArguments = typeArguments;
+        }
+
+        @Override  // on Java 8
+        @UsesJava8
+        public String getTypeName() {
+            StringBuilder result = new StringBuilder(this.rawType.getTypeName());
+            if (this.typeArguments.length > 0) {
+                result.append('<');
+                for (int i = 0; i < this.typeArguments.length; i++) {
+                    if (i > 0) {
+                        result.append(", ");
+                    }
+                    result.append(this.typeArguments[i].getTypeName());
+                }
+                result.append('>');
+            }
+            return result.toString();
+        }
+
+        @Override
+        public Type getOwnerType() {
+            return null;
+        }
+
+        @Override
+        public Type getRawType() {
+            return this.rawType;
+        }
+
+        @Override
+        public Type[] getActualTypeArguments() {
+            return this.typeArguments;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof ParameterizedType)) {
+                return false;
+            }
+            ParameterizedType otherType = (ParameterizedType) other;
+            return (otherType.getOwnerType() == null && this.rawType.equals(otherType.getRawType()) &&
+                    Arrays.equals(this.typeArguments, otherType.getActualTypeArguments()));
+        }
+
+        @Override
+        public int hashCode() {
+            return (this.rawType.hashCode() * 31 + Arrays.hashCode(this.typeArguments));
+        }
+    }
 
     private static class WildcardBounds {
 

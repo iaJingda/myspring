@@ -4,6 +4,7 @@ import org.myspring.core.util.Assert;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
+import java.util.HashMap;
 import java.util.Map;
 
 public class MethodParameter {
@@ -46,6 +47,20 @@ public class MethodParameter {
         this.nestingLevel = nestingLevel;
         this.constructor = null;
     }
+    public MethodParameter(MethodParameter original) {
+        Assert.notNull(original, "Original must not be null");
+        this.method = original.method;
+        this.constructor = original.constructor;
+        this.parameterIndex = original.parameterIndex;
+        this.nestingLevel = original.nestingLevel;
+        this.typeIndexesPerLevel = original.typeIndexesPerLevel;
+        this.containingClass = original.containingClass;
+        this.parameterType = original.parameterType;
+        this.genericParameterType = original.genericParameterType;
+        this.parameterAnnotations = original.parameterAnnotations;
+        this.parameterNameDiscoverer = original.parameterNameDiscoverer;
+        this.parameterName = original.parameterName;
+    }
 
     public MethodParameter(Constructor<?> constructor, int parameterIndex) {
         this(constructor, parameterIndex, 1);
@@ -59,6 +74,53 @@ public class MethodParameter {
         this.method = null;
     }
 
+    public <A extends Annotation> A getParameterAnnotation(Class<A> annotationType) {
+        Annotation[] anns = getParameterAnnotations();
+        for (Annotation ann : anns) {
+            if (annotationType.isInstance(ann)) {
+                return (A) ann;
+            }
+        }
+        return null;
+    }
+
+
+    public Class<?> getNestedParameterType() {
+        if (this.nestingLevel > 1) {
+            Type type = getGenericParameterType();
+            for (int i = 2; i <= this.nestingLevel; i++) {
+                if (type instanceof ParameterizedType) {
+                    Type[] args = ((ParameterizedType) type).getActualTypeArguments();
+                    Integer index = getTypeIndexForLevel(i);
+                    type = args[index != null ? index : args.length - 1];
+                }
+                // TODO: Object.class if unresolvable
+            }
+            if (type instanceof Class) {
+                return (Class<?>) type;
+            }
+            else if (type instanceof ParameterizedType) {
+                Type arg = ((ParameterizedType) type).getRawType();
+                if (arg instanceof Class) {
+                    return (Class<?>) arg;
+                }
+            }
+            return Object.class;
+        }
+        else {
+            return getParameterType();
+        }
+    }
+    public Integer getTypeIndexForLevel(int nestingLevel) {
+        return getTypeIndexesPerLevel().get(nestingLevel);
+    }
+
+    private Map<Integer, Integer> getTypeIndexesPerLevel() {
+        if (this.typeIndexesPerLevel == null) {
+            this.typeIndexesPerLevel = new HashMap<Integer, Integer>(4);
+        }
+        return this.typeIndexesPerLevel;
+    }
 
     public Annotation[] getMethodAnnotations() {
         return adaptAnnotationArray(getAnnotatedElement().getAnnotations());
@@ -98,7 +160,18 @@ public class MethodParameter {
         }
         return paramAnns;
     }
-
+    public static MethodParameter forMethodOrConstructor(Object methodOrConstructor, int parameterIndex) {
+        if (methodOrConstructor instanceof Method) {
+            return new MethodParameter((Method) methodOrConstructor, parameterIndex);
+        }
+        else if (methodOrConstructor instanceof Constructor) {
+            return new MethodParameter((Constructor<?>) methodOrConstructor, parameterIndex);
+        }
+        else {
+            throw new IllegalArgumentException(
+                    "Given object [" + methodOrConstructor + "] is neither a Method nor a Constructor");
+        }
+    }
 
 
     public Class<?> getParameterType() {
@@ -183,4 +256,23 @@ public class MethodParameter {
         return paramType;
     }
 
+    public void increaseNestingLevel() {
+        this.nestingLevel++;
+    }
+
+    public String getParameterName() {
+        ParameterNameDiscoverer discoverer = this.parameterNameDiscoverer;
+        if (discoverer != null) {
+            String[] parameterNames = (this.method != null ?
+                    discoverer.getParameterNames(this.method) : discoverer.getParameterNames(this.constructor));
+            if (parameterNames != null) {
+                this.parameterName = parameterNames[this.parameterIndex];
+            }
+            this.parameterNameDiscoverer = null;
+        }
+        return this.parameterName;
+    }
+    public void initParameterNameDiscovery(ParameterNameDiscoverer parameterNameDiscoverer) {
+        this.parameterNameDiscoverer = parameterNameDiscoverer;
+    }
 }

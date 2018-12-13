@@ -6,7 +6,7 @@ import org.myspring.core.ResolvableType;
 
 public interface BeanFactory {
 
-    String FACTRY_BEAN_PREFIX="&";
+    String FACTORY_BEAN_PREFIX="&";
 
     Object getBean(String name) throws BeansException;
 

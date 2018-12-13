@@ -107,6 +107,8 @@ public class PropertySourcesPropertyResolver extends AbstractPropertyResolver {
         }
     }
 
+
+    //================================================================
     private static class ClassConversionException extends ConversionException {
 
         public ClassConversionException(Class<?> actual, Class<?> expected) {

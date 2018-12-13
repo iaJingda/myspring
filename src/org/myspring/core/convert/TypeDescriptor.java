@@ -73,6 +73,49 @@ public class TypeDescriptor implements Serializable {
 
     //构造方法结束=======================================================================================================
 
+
+    public static TypeDescriptor nested(Property property, int nestingLevel) {
+        return nested(new TypeDescriptor(property), nestingLevel);
+    }
+    private static TypeDescriptor nested(TypeDescriptor typeDescriptor, int nestingLevel) {
+        ResolvableType nested = typeDescriptor.resolvableType;
+        for (int i = 0; i < nestingLevel; i++) {
+            if (Object.class == nested.getType()) {
+                // Could be a collection type but we don't know about its element type,
+                // so let's just assume there is an element type of type Object...
+            }
+            else {
+                nested = nested.getNested(2);
+            }
+        }
+        if (nested == ResolvableType.NONE) {
+            return null;
+        }
+        return getRelatedIfResolvable(typeDescriptor, nested);
+    }
+
+
+
+    public TypeDescriptor elementTypeDescriptor(Object element) {
+        return narrow(element, getElementTypeDescriptor());
+    }
+    private TypeDescriptor narrow(Object value, TypeDescriptor typeDescriptor) {
+        if (typeDescriptor != null) {
+            return typeDescriptor.narrow(value);
+        }
+        if (value != null) {
+            return narrow(value);
+        }
+        return null;
+    }
+    public TypeDescriptor narrow(Object value) {
+        if (value == null) {
+            return this;
+        }
+        ResolvableType narrowed = ResolvableType.forType(value.getClass(), getResolvableType());
+        return new TypeDescriptor(narrowed, value.getClass(), getAnnotations());
+    }
+
     public boolean isAssignableTo(TypeDescriptor typeDescriptor) {
         boolean typesAssignable = typeDescriptor.getObjectType().isAssignableFrom(getObjectType());
         if (!typesAssignable) {
@@ -110,7 +153,9 @@ public class TypeDescriptor implements Serializable {
         return getRelatedIfResolvable(this, getResolvableType().asMap().getGeneric(1));
     }
 
-
+    public TypeDescriptor getMapValueTypeDescriptor(Object mapValue) {
+        return narrow(mapValue, getMapValueTypeDescriptor());
+    }
 
 
 

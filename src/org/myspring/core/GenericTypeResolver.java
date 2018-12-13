@@ -6,6 +6,7 @@ import org.myspring.core.util.ConcurrentReferenceHashMap;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
+import java.lang.reflect.WildcardType;
 import java.util.Map;
 
 public abstract class GenericTypeResolver {
@@ -17,6 +18,29 @@ public abstract class GenericTypeResolver {
     public static Type getTargetType(MethodParameter methodParameter) {
         Assert.notNull(methodParameter, "MethodParameter must not be null");
         return methodParameter.getGenericParameterType();
+    }
+    public static Class<?> resolveTypeArgument(Class<?> clazz, Class<?> genericIfc) {
+        ResolvableType resolvableType = ResolvableType.forClass(clazz).as(genericIfc);
+        if (!resolvableType.hasGenerics()) {
+            return null;
+        }
+        return getSingleGeneric(resolvableType);
+    }
+    private static Class<?> getSingleGeneric(ResolvableType resolvableType) {
+        if (resolvableType.getGenerics().length > 1) {
+            throw new IllegalArgumentException("Expected 1 type argument on generic interface [" +
+                    resolvableType + "] but found " + resolvableType.getGenerics().length);
+        }
+        return resolvableType.getGeneric().resolve();
+    }
+
+    public static Class<?> resolveReturnTypeArgument(Method method, Class<?> genericIfc) {
+        Assert.notNull(method, "Method must not be null");
+        ResolvableType resolvableType = ResolvableType.forMethodReturnType(method).as(genericIfc);
+        if (!resolvableType.hasGenerics() || resolvableType.getType() instanceof WildcardType) {
+            return null;
+        }
+        return getSingleGeneric(resolvableType);
     }
 
 

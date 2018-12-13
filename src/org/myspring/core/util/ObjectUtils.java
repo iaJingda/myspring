@@ -1,6 +1,9 @@
 package org.myspring.core.util;
 
+import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Map;
 
 public abstract class ObjectUtils {
     private static final int INITIAL_HASH = 7;
@@ -16,11 +19,63 @@ public abstract class ObjectUtils {
         return (array == null || array.length == 0);
     }
 
+    public static boolean isEmpty(Object obj) {
+        if (obj == null) {
+            return true;
+        }
+
+        if (obj instanceof CharSequence) {
+            return ((CharSequence) obj).length() == 0;
+        }
+        if (obj.getClass().isArray()) {
+            return Array.getLength(obj) == 0;
+        }
+        if (obj instanceof Collection) {
+            return ((Collection) obj).isEmpty();
+        }
+        if (obj instanceof Map) {
+            return ((Map) obj).isEmpty();
+        }
+
+        // else
+        return false;
+    }
+
+    public static boolean isArray(Object obj) {
+        return (obj != null && obj.getClass().isArray());
+    }
+
+    public static String nullSafeClassName(Object obj) {
+        return (obj != null ? obj.getClass().getName() : NULL_STRING);
+    }
+
     public static String identityToString(Object obj) {
         if (obj == null) {
             return EMPTY_STRING;
         }
         return obj.getClass().getName() + "@" + getIdentityHexString(obj);
+    }
+
+    public static Object[] toObjectArray(Object source) {
+        if (source instanceof Object[]) {
+            return (Object[]) source;
+        }
+        if (source == null) {
+            return new Object[0];
+        }
+        if (!source.getClass().isArray()) {
+            throw new IllegalArgumentException("Source is not an array: " + source);
+        }
+        int length = Array.getLength(source);
+        if (length == 0) {
+            return new Object[0];
+        }
+        Class<?> wrapperType = Array.get(source, 0).getClass();
+        Object[] newArray = (Object[]) Array.newInstance(wrapperType, length);
+        for (int i = 0; i < length; i++) {
+            newArray[i] = Array.get(source, i);
+        }
+        return newArray;
     }
 
     public static boolean containsElement(Object[] array, Object element) {
